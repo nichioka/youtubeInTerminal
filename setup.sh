@@ -78,7 +78,7 @@ else
   install_with_manager "$pkg_manager"
 fi
 
-chmod +x ./yt.sh ./init.sh
+chmod +x ./yt.sh ./setup.sh
 
 echo "Setup concluído!"
 echo "Execute: ./yt.sh \"termo da busca\""

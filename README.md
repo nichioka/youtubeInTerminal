@@ -1,98 +1,103 @@
 # youtubeInTerminal
 
-Busca vídeos do YouTube no terminal, permite selecionar com `fzf` e reproduz com `mpv`.
+Busca e reproduz vídeos do YouTube no terminal com `fzf` + `mpv`, com suporte a fila, paginação e links diretos.
 
-## Pré-requisitos
+## Requisitos
 
 - `yt-dlp`
 - `fzf`
 - `mpv`
 
-## Inicialização
+## Instalação
 
 Use o script de setup para instalar dependências e ajustar permissões:
 
 ```bash
-./init.sh
+./setup.sh
 ```
 
 ## Uso
 
-Depois do setup:
-
-```bash
-./yt.sh "termo de busca"
-```
-
-Também aceita link direto de vídeo:
-
-```bash
-./yt.sh "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-```
-
-E link direto de playlist:
-
-```bash
-./yt.sh "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxx"
-```
-
-Também funciona sem argumento (modo interativo):
-
-```bash
-./yt.sh
-```
-
-Modo fila (seleciona vários resultados na busca):
-
-```bash
-./yt.sh --queue "termo de busca"
-```
-
-Modo YouTube Music (prioriza áudio):
-
-```bash
-./yt.sh --music "termo de busca"
-```
-
-Combinação fila + música:
-
-```bash
-./yt.sh --queue --music "termo de busca"
-```
-
-Exemplo:
+Busca por termo:
 
 ```bash
 ./yt.sh "lofi hip hop"
 ```
 
-## Como funciona
+Modo interativo (sem argumento):
 
-1. Busca resultados no YouTube com `yt-dlp`.
-2. Mostra no `fzf` com título completo.
-3. Exibe 20 por página e inclui as opções `Pagina anterior` e `Proxima pagina`.
-4. Permite montar fila (com `--queue`) e reproduz em sequência no `mpv`.
-5. Com `--music`, usa formato focado em áudio.
-6. Se receber URL de vídeo/playlist, toca direto sem abrir busca.
+```bash
+./yt.sh
+```
 
-## Ajuda rápida
+Ajuda:
 
 ```bash
 ./yt.sh --help
 ```
 
-Atalhos de argumentos:
+## Opções disponíveis
 
-- `-q` = `--queue`
-- `-m` = `--music`
-- `-h` = `--help`
+- `-m`, `--music`: prioriza áudio (`bestaudio`)
+- `-h`, `--help`: exibe ajuda
 
-## Testes
+No modo `--music`, o player roda sem vídeo e mantém controles/HUD no terminal.
 
-Para validar o comportamento principal do script com mocks locais:
+Exemplo com música:
 
 ```bash
-./tests/run_tests.sh
+./yt.sh --music "chill mix"
 ```
 
-O runner testa sintaxe, ajuda, fluxo por URL e fluxo interativo.
+## Links diretos
+
+Vídeo:
+
+```bash
+./yt.sh "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+```
+
+Playlist:
+
+```bash
+./yt.sh "https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxx"
+```
+
+Ao informar uma playlist, o script pergunta:
+
+- `Tocar como fila? [S/n]`
+- Enter (padrão `S`): toca tudo em uma única instância do `mpv`
+- `n`: abre a seleção da própria playlist no `fzf` (com paginação)
+
+## Fluxo da seleção
+
+- Títulos completos no `fzf`
+- Paginação de 20 resultados por página
+- Navegação por `Pagina anterior` e `Proxima pagina`
+- Seleção com `ENTER`
+- Opção `Mudar termo` durante a escolha
+
+## Histórico de reprodução
+
+Cada vídeo tocado é registrado em `play_history.log` com:
+
+- data e hora
+- título
+- URL
+
+Exemplo:
+
+```text
+[2026-03-26 04:46:24] Resultado 1 | https://www.youtube.com/watch?v=vid001
+```
+
+## Controles durante reprodução (mpv)
+
+Enquanto a música/vídeo estiver tocando, use:
+
+- `9` / `0`: diminuir / aumentar volume
+- `←` / `→`: voltar / adiantar 5s
+- `↓` / `↑`: voltar / adiantar 1min
+- `<` / `>`: faixa anterior / próxima faixa
+- `Space`: pausar/continuar
+- `q`: sair do player

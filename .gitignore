@@ -1,3 +1,5 @@
 .test_tmp.*
 *.tmp
 *.log
+tests/
+play_history.log

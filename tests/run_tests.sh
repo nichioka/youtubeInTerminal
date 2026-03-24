@@ -33,7 +33,7 @@ assert_file_contains() {
 	local file_path="$1"
 	local expected="$2"
 	local label="$3"
-	if [[ -f "$file_path" ]] && grep -Fq "$expected" "$file_path"; then
+	if [[ -f "$file_path" ]] && grep -Fq -- "$expected" "$file_path"; then
 		print_ok "$label"
 	else
 		print_fail "$label (arquivo sem conteúdo esperado: $expected)"
@@ -118,7 +118,7 @@ fi
 
 help_output="$(bash "$SCRIPT_PATH" --help 2>&1 || true)"
 assert_contains "$help_output" "Uso: ./yt.sh" "Ajuda exibe uso"
-assert_contains "$help_output" "--queue" "Ajuda exibe opcao de fila"
+assert_contains "$help_output" "--music" "Ajuda exibe opcao de música"
 
 url_output="$(printf 'n\n' | bash "$SCRIPT_PATH" "https://www.youtube.com/watch?v=abc" 2>&1 || true)"
 assert_contains "$url_output" "Link direto detectado: video." "Fluxo URL detecta link"
@@ -136,12 +136,12 @@ else
 	print_fail "Fluxo playlist em mpv único (esperado 1 chamada, recebido $mpv_count)"
 fi
 
-assert_file_contains "$TEST_LOG_MPV" "playlist=-" "Fluxo playlist usa modo playlist do mpv"
+assert_file_contains "$TEST_LOG_MPV" "--playlist=" "Fluxo playlist usa modo playlist do mpv"
 
 rm -f "$TEST_LOG_MPV"
 interactive_output="$(printf 'lofi\nn\n' | bash "$SCRIPT_PATH" 2>&1 || true)"
 assert_contains "$interactive_output" "resultado(s) carregado(s)." "Busca interativa carrega resultados"
-assert_file_contains "$TEST_LOG_MPV" "playlist=-" "Busca interativa usa modo playlist do mpv"
+assert_file_contains "$TEST_LOG_MPV" "--playlist=" "Busca interativa usa modo playlist do mpv"
 
 if ((FAIL_COUNT > 0)); then
 	echo
