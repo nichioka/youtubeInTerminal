@@ -125,14 +125,23 @@ assert_contains "$url_output" "Link direto detectado: video." "Fluxo URL detecta
 assert_contains "$url_output" "Fila finalizada." "Fluxo URL oferece continuidade"
 assert_file_contains "$TEST_LOG_MPV" "youtube.com/watch?v=vidurl001" "Fluxo URL toca vídeo no mpv"
 
+rm -f "$TEST_LOG_MPV"
 playlist_output="$(printf 's\nn\n' | bash "$SCRIPT_PATH" "https://www.youtube.com/playlist?list=PLabc" 2>&1 || true)"
 assert_contains "$playlist_output" "Link direto detectado: playlist." "Fluxo playlist detecta link"
-assert_file_contains "$TEST_LOG_MPV" "youtube.com/watch?v=pl001" "Fluxo playlist em fila toca primeiro vídeo"
-assert_file_contains "$TEST_LOG_MPV" "youtube.com/watch?v=pl002" "Fluxo playlist em fila toca segundo vídeo"
 
+mpv_count="$(wc -l < "$TEST_LOG_MPV" 2>/dev/null || echo 0)"
+if [[ "$mpv_count" == "1" ]]; then
+	print_ok "Fluxo playlist em mpv único (1 chamada)"
+else
+	print_fail "Fluxo playlist em mpv único (esperado 1 chamada, recebido $mpv_count)"
+fi
+
+assert_file_contains "$TEST_LOG_MPV" "playlist=-" "Fluxo playlist usa modo playlist do mpv"
+
+rm -f "$TEST_LOG_MPV"
 interactive_output="$(printf 'lofi\nn\n' | bash "$SCRIPT_PATH" 2>&1 || true)"
 assert_contains "$interactive_output" "resultado(s) carregado(s)." "Busca interativa carrega resultados"
-assert_file_contains "$TEST_LOG_MPV" "youtube.com/watch?v=vid001" "Busca interativa toca resultado selecionado"
+assert_file_contains "$TEST_LOG_MPV" "playlist=-" "Busca interativa usa modo playlist do mpv"
 
 if ((FAIL_COUNT > 0)); then
 	echo

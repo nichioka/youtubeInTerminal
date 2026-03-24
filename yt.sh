@@ -56,20 +56,170 @@ get_playlist_lines() {
 	yt-dlp "$playlist_url" --get-title --get-id --flat-playlist | paste - -
 }
 
-play_lines_as_queue() {
+play_lines_in_mpv() {
 	local lines="$1"
 	local queue_line=""
+	local queue_url=""
 	local queue_title=""
 	local queue_id=""
+	local urls_str=""
+	local first=1
 
 	while IFS= read -r queue_line; do
 		[[ -z "$queue_line" ]] && continue
 		queue_title="$(printf '%s\n' "$queue_line" | cut -f1)"
 		queue_id="$(printf '%s\n' "$queue_line" | cut -f2)"
 		[[ -z "$queue_id" ]] && continue
-		echo "Tocando: $queue_title"
-		play_video "$queue_id"
+		
+		if ((first == 1)); then
+			echo "Tocando: $queue_title"
+			first=0
+		fi
+		
+		queue_url="https://www.youtube.com/watch?v=${queue_id}"
+		urls_str+="${queue_url}"$'\n'
 	done <<< "$lines"
+
+	if [[ -n "$urls_str" ]]; then
+		printf '%s' "$urls_str" | mpv --playlist=- --ytdl-format="$MPV_FORMAT" 2>/dev/null || true
+	fi
+}
+
+play_lines_as_queue() {
+	local lines="$1"
+	play_lines_in_mpv "$lines"
+}
+
+playlist_selection() {
+	local playlist_lines="$1"
+	local multi_mode="$2"
+	local page=0
+	local start=0
+	local end=0
+	local total=0
+	local has_prev=0
+	local has_more=0
+	local selected_line=""
+	local page_lines=""
+	local page_input=""
+	local selection=""
+	local line_id=""
+	local next_selected=0
+	local prev_selected=0
+	local done_selected=0
+
+	mapfile -t all_results <<< "$playlist_lines"
+	total=${#all_results[@]}
+	if ((total == 0)); then
+		echo "Playlist vazia." >&2
+		return 0
+	fi
+
+	echo "$total video(s) na playlist." >&2
+
+	while true; do
+		start=$((page * SEARCH_LIMIT))
+		if ((start >= total)); then
+			break
+		fi
+
+		end=$((start + SEARCH_LIMIT))
+		if ((end > total)); then
+			end=$total
+		fi
+
+		has_prev=0
+		if ((page > 0)); then
+			has_prev=1
+		fi
+
+		has_more=0
+		if ((end < total)); then
+			has_more=1
+		fi
+
+		page_lines="$(printf '%s\n' "${all_results[@]:$start:$((end - start))}")"
+
+		if [[ "$multi_mode" == "1" ]]; then
+			page_input="$page_lines"
+			if ((has_prev == 1)); then
+				page_input+=$'\nPagina anterior\t__PREV_PAGE__'
+			fi
+			if ((has_more == 1)); then
+				page_input+=$'\nProxima pagina\t__NEXT_PAGE__'
+			fi
+			page_input+=$'\nFinalizar selecao\t__DONE__'
+
+			selection="$(printf '%s\n' "$page_input" | fzf --height 40% --reverse --multi --prompt "YouTube > " --delimiter=$'\t' --with-nth=1 --header "Página $((page + 1)) | TAB marca | Navegue/Finalize")"
+
+			[[ -z "$selection" ]] && break
+
+			next_selected=0
+			prev_selected=0
+			done_selected=0
+			while IFS= read -r selected_line; do
+				[[ -z "$selected_line" ]] && continue
+				line_id="$(printf '%s\n' "$selected_line" | cut -f2)"
+				case "$line_id" in
+					__PREV_PAGE__)
+						prev_selected=1
+						;;
+					__NEXT_PAGE__)
+						next_selected=1
+						;;
+					__DONE__)
+						done_selected=1
+						;;
+					*)
+						printf '%s\n' "$selected_line"
+						;;
+				esac
+			done <<< "$selection"
+
+			if ((done_selected == 1)); then
+				break
+			fi
+
+			if ((prev_selected == 1 && has_prev == 1)); then
+				page=$((page - 1))
+				continue
+			fi
+
+			if ((next_selected == 1 && has_more == 1)); then
+				page=$((page + 1))
+				continue
+			fi
+
+			break
+		else
+			page_input="$page_lines"
+			if ((has_prev == 1)); then
+				page_input+=$'\nPagina anterior\t__PREV_PAGE__'
+			fi
+			if ((has_more == 1)); then
+				page_input+=$'\nProxima pagina\t__NEXT_PAGE__'
+			fi
+
+			selected_line="$(printf '%s\n' "$page_input" | fzf --height 40% --reverse --prompt "YouTube > " --delimiter=$'\t' --with-nth=1 --header "Pagina $((page + 1)) | ENTER seleciona")"
+
+			if [[ -z "$selected_line" ]]; then
+				break
+			fi
+
+			line_id="$(printf '%s\n' "$selected_line" | cut -f2)"
+			if [[ "$line_id" == "__PREV_PAGE__" && "$has_prev" == "1" ]]; then
+				page=$((page - 1))
+				continue
+			fi
+			if [[ "$line_id" == "__NEXT_PAGE__" && "$has_more" == "1" ]]; then
+				page=$((page + 1))
+				continue
+			fi
+
+			printf '%s\n' "$selected_line"
+			break
+		fi
+	done
 }
 
 handle_url_input() {
@@ -87,15 +237,15 @@ handle_url_input() {
 			return 1
 		fi
 
-		read -r -p "Rodar playlist como fila? [s/N]: " run_as_queue || true
+		read -r -p "Tocar como fila? [S/n]: " run_as_queue || true
+		run_as_queue="${run_as_queue:-s}"
 		if [[ "$run_as_queue" =~ ^([sS]|[sS][iI][mM])$ ]]; then
-			play_lines_as_queue "$playlist_lines"
+			play_lines_in_mpv "$playlist_lines"
+			return 99
+		else
+			playlist_selection "$playlist_lines" "$QUEUE_MODE"
+			return 0
 		fi
-
-		if [[ "$mode" == "change-term" ]]; then
-			printf '%s\n' "$playlist_lines"
-		fi
-		return 0
 	fi
 
 	echo "Link direto detectado: video." >&2
@@ -326,12 +476,27 @@ if [[ -z "${search_term// }" ]]; then
 fi
 
 if is_youtube_url "$search_term"; then
-	handle_url_input "$search_term" "main" || exit 1
-	prompt_restart
-	exit 0
+	url_result=0
+	url_output="$(handle_url_input "$search_term" "main")" || url_result=$?
+	
+	if [[ "$url_result" == 99 ]]; then
+		prompt_restart
+		exit 0
+	fi
+	
+	if [[ "$url_result" != 0 ]]; then
+		exit 1
+	fi
+	
+	if [[ -n "$url_output" ]]; then
+		selected_lines="$url_output"
+	else
+		prompt_restart
+		exit 0
+	fi
+else
+	selected_lines="$(choose_from_search "$search_term" "$QUEUE_MODE")"
 fi
-
-selected_lines="$(choose_from_search "$search_term" "$QUEUE_MODE")"
 
 if [[ -z "$selected_lines" ]]; then
 	echo "Nenhum vídeo selecionado."
@@ -351,12 +516,6 @@ if [[ -z "$first_selected_id" ]]; then
 fi
 
 echo "Fila iniciada (${#queue_lines[@]} video(s))."
-for queue_line in "${queue_lines[@]}"; do
-	queue_title="$(printf '%s\n' "$queue_line" | cut -f1)"
-	queue_id="$(printf '%s\n' "$queue_line" | cut -f2)"
-	[[ -z "$queue_id" ]] && continue
-	echo "Tocando: $queue_title"
-	play_video "$queue_id"
-done
+play_lines_in_mpv "$selected_lines"
 
 prompt_restart
